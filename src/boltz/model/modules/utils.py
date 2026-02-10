@@ -10,8 +10,72 @@ from torch.nn import (
     Module,
 )
 from torch.types import Device
+from torch.utils.checkpoint import checkpoint as torch_checkpoint
 
 LinearNoBias = partial(Linear, bias=False)
+
+
+def empty_device_cache(device_type: str) -> None:
+    """Clear device memory cache for the given device type.
+
+    Parameters
+    ----------
+    device_type : str
+        The device type string (e.g. "cuda", "xpu", "cpu").
+
+    """
+    if device_type == "cuda":
+        torch.cuda.empty_cache()
+    elif device_type == "xpu":
+        torch.xpu.empty_cache()
+    # CPU and other devices have no cache to clear
+
+
+class CheckpointWrapper(Module):
+    """Wraps a module to use activation checkpointing during forward.
+
+    Drop-in replacement for fairscale's checkpoint_wrapper. Recomputes
+    activations during backward instead of storing them, reducing memory
+    at the cost of extra compute.
+
+    Parameters
+    ----------
+    module : Module
+        The module to wrap.
+    offload_to_cpu : bool
+        Accepted for API compatibility but not used.
+
+    """
+
+    def __init__(self, module: Module, offload_to_cpu: bool = False) -> None:
+        super().__init__()
+        self.module = module
+        self.offload_to_cpu = offload_to_cpu
+
+    def forward(self, *args, **kwargs):
+        """Forward pass with activation checkpointing."""
+        return torch_checkpoint(self.module, *args, use_reentrant=False, **kwargs)
+
+
+def checkpoint_wrapper(module: Module, offload_to_cpu: bool = False) -> CheckpointWrapper:
+    """Wrap a module with activation checkpointing.
+
+    Drop-in replacement for fairscale.nn.checkpoint.checkpoint_wrapper.
+
+    Parameters
+    ----------
+    module : Module
+        The module to wrap.
+    offload_to_cpu : bool
+        Accepted for API compatibility but not used.
+
+    Returns
+    -------
+    CheckpointWrapper
+        The wrapped module.
+
+    """
+    return CheckpointWrapper(module, offload_to_cpu=offload_to_cpu)
 
 
 def exists(v):

@@ -1,8 +1,9 @@
-import pytorch_lightning
+import random
+import unittest
+
+import numpy as np
 import torch
 import torch.nn as nn
-
-import unittest
 
 from boltz.model.layers.triangular_attention.attention import TriangleAttention
 
@@ -14,7 +15,9 @@ class OuterProductMeanTest(unittest.TestCase):
         self.no_heads = 1
 
         torch.set_grad_enabled(False)
-        pytorch_lightning.seed_everything(1100)
+        random.seed(1100)
+        np.random.seed(1100)
+        torch.manual_seed(1100)
         self.layer = TriangleAttention(self.c_in, self.c_hidden, self.no_heads)
 
         # Initialize layer

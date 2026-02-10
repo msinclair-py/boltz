@@ -2,6 +2,7 @@ import multiprocessing
 import os
 import pickle
 import platform
+import random
 import tarfile
 import urllib.request
 import warnings
@@ -12,10 +13,9 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import click
+import numpy as np
 import torch
-from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.strategies import DDPStrategy
-from pytorch_lightning.utilities import rank_zero_only
+import torch.distributed as dist
 from rdkit import Chem
 from tqdm import tqdm
 
@@ -32,6 +32,33 @@ from boltz.data.types import MSA, Manifest, Record
 from boltz.data.write.writer import BoltzAffinityWriter, BoltzWriter
 from boltz.model.models.boltz1 import Boltz1
 from boltz.model.models.boltz2 import Boltz2
+
+def seed_everything(seed: int) -> None:
+    """Set random seeds for reproducibility.
+
+    Parameters
+    ----------
+    seed : int
+        The seed value.
+
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def rank_zero_only(fn):
+    """Decorator that only executes the function on rank 0."""
+
+    def wrapper(*args, **kwargs):
+        if not dist.is_initialized() or dist.get_rank() == 0:
+            return fn(*args, **kwargs)
+        return None
+
+    return wrapper
+
 
 CCD_URL = "https://huggingface.co/boltz-community/boltz-1/resolve/main/ccd.pkl"
 MOL_URL = "https://huggingface.co/boltz-community/boltz-2/resolve/main/mols.tar"
@@ -808,6 +835,47 @@ def process_inputs(
     manifest.dump(out_dir / "processed" / "manifest.json")
 
 
+def run_inference(model, data_module, writer, device, precision_dtype=None):
+    """Run model inference and write predictions.
+
+    Parameters
+    ----------
+    model : nn.Module
+        The model to run inference with.
+    data_module : object
+        Data module with predict_dataloader() method.
+    writer : object
+        Writer with write_on_batch_end() and on_predict_epoch_end() methods.
+    device : torch.device
+        The device to run inference on.
+    precision_dtype : torch.dtype, optional
+        The dtype for autocast. If None, no autocast is used.
+
+    """
+    from boltz.data.module.utils import transfer_batch_to_device
+
+    model.to(device)
+    model.eval()
+
+    dataloader = data_module.predict_dataloader()
+
+    use_autocast = precision_dtype is not None
+    autocast_dtype = precision_dtype if precision_dtype else torch.float32
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(dataloader):
+            batch = transfer_batch_to_device(batch, device)
+            with torch.autocast(
+                device_type=device.type,
+                dtype=autocast_dtype,
+                enabled=use_autocast,
+            ):
+                prediction = model.predict_step(batch, batch_idx)
+            writer.write_on_batch_end(prediction, batch)
+
+    writer.on_predict_epoch_end()
+
+
 @click.group()
 def cli() -> None:
     """Boltz."""
@@ -845,7 +913,7 @@ def cli() -> None:
 )
 @click.option(
     "--accelerator",
-    type=click.Choice(["gpu", "cpu", "tpu"]),
+    type=click.Choice(["auto", "gpu", "cuda", "xpu", "cpu"]),
     help="The accelerator to use for prediction. Default is gpu.",
     default="gpu",
 )
@@ -1207,23 +1275,34 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         ),
     )
 
-    # Set up trainer
-    strategy = "auto"
+    # Determine device
+    if accelerator == "auto" or accelerator == "gpu":
+        if torch.cuda.is_available():
+            device = torch.device("cuda", 0)
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            device = torch.device("xpu", 0)
+        else:
+            device = torch.device("cpu")
+    elif accelerator == "cuda":
+        device = torch.device("cuda", 0)
+    elif accelerator == "xpu":
+        device = torch.device("xpu", 0)
+    elif accelerator == "tpu":
+        msg = "TPU accelerator is not supported without PyTorch Lightning."
+        raise ValueError(msg)
+    else:
+        device = torch.device("cpu")
+
+    # TODO: Multi-device DDP inference is not yet supported in the vanilla loop.
+    # For now, we use a single device. Multi-device support requires
+    # torch.distributed setup with DistributedDataParallel.
     if (isinstance(devices, int) and devices > 1) or (
         isinstance(devices, list) and len(devices) > 1
     ):
-        start_method = "fork" if platform.system() != "win32" and platform.system() != "Windows" else "spawn"
-        strategy = DDPStrategy(start_method=start_method)
-        if len(filtered_manifest.records) < devices:
-            msg = (
-                "Number of requested devices is greater "
-                "than the number of predictions, taking the minimum."
-            )
-            click.echo(msg)
-            if isinstance(devices, list):
-                devices = devices[: max(1, len(filtered_manifest.records))]
-            else:
-                devices = max(1, min(len(filtered_manifest.records), devices))
+        click.echo(
+            "Warning: Multi-device inference is not yet supported without "
+            "PyTorch Lightning. Using single device."
+        )
 
     # Set up model parameters
     if model == "boltz2":
@@ -1252,15 +1331,10 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         write_embeddings=write_embeddings,
     )
 
-    # Set up trainer
-    trainer = Trainer(
-        default_root_dir=out_dir,
-        strategy=strategy,
-        callbacks=[pred_writer],
-        accelerator=accelerator,
-        devices=devices,
-        precision=32 if model == "boltz1" else "bf16-mixed",
-    )
+    # Set precision dtype
+    precision_dtype = None
+    if model == "boltz2":
+        precision_dtype = torch.bfloat16
 
     if filtered_manifest.records:
         msg = f"Running structure prediction for {len(filtered_manifest.records)} input"
@@ -1325,12 +1399,8 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         )
         model_module.eval()
 
-        # Compute structure predictions
-        trainer.predict(
-            model_module,
-            datamodule=data_module,
-            return_predictions=False,
-        )
+        # Run structure predictions
+        run_inference(model_module, data_module, pred_writer, device, precision_dtype)
 
     # Check if affinity predictions are needed
     if any(r.affinity for r in manifest.records):
@@ -1351,7 +1421,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         msg += "s." if len(manifest_filtered.records) > 1 else "."
         click.echo(msg)
 
-        pred_writer = BoltzAffinityWriter(
+        affinity_writer = BoltzAffinityWriter(
             data_dir=processed.targets_dir,
             output_dir=out_dir / "predictions",
         )
@@ -1387,7 +1457,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         steering_args.fk_steering = False
         steering_args.physical_guidance_update = False
         steering_args.contact_guidance_update = False
-        
+
         model_module = Boltz2.load_from_checkpoint(
             affinity_checkpoint,
             strict=True,
@@ -1402,12 +1472,8 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         )
         model_module.eval()
 
-        trainer.callbacks[0] = pred_writer
-        trainer.predict(
-            model_module,
-            datamodule=data_module,
-            return_predictions=False,
-        )
+        # Run affinity predictions
+        run_inference(model_module, data_module, affinity_writer, device, precision_dtype)
 
 
 if __name__ == "__main__":

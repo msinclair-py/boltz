@@ -1,6 +1,6 @@
 # started from code from https://github.com/lucidrains/alphafold3-pytorch, MIT License, Copyright (c) 2024 Phil Wang
 
-from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
+from boltz.model.modules.utils import checkpoint_wrapper
 from torch import nn, sigmoid
 from torch.nn import (
     LayerNorm,

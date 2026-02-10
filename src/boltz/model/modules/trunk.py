@@ -1,7 +1,7 @@
 from typing import Optional
 
 import torch
-from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
+from boltz.model.modules.utils import checkpoint_wrapper
 from torch import Tensor, nn
 
 from boltz.data import const

@@ -9,7 +9,17 @@ import torch.nn as nn
 import pytest
 import unittest
 
-from lightning_fabric import seed_everything
+import random
+import numpy as np
+
+
+def seed_everything(seed):
+    """Set random seeds for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 from boltz.main import MODEL_URL
 from boltz.model.model import Boltz1
@@ -24,7 +34,12 @@ test_data_dir = os.path.join(tests_dir, "data")
 class RegressionTester(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            device = torch.device("xpu")
+        else:
+            device = torch.device("cpu")
         cache = os.path.expanduser("~/.boltz")
         checkpoint_url = MODEL_URL
         model_name = checkpoint_url.split("/")[-1]

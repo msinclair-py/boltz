@@ -1,8 +1,14 @@
 import os
+import sys
 import time
 
 import pandas as pd
 import torch
+
+if not torch.cuda.is_available():
+    print("CUDA not available, skipping kernel benchmarks.")
+    sys.exit(0)
+
 import triton
 from profiling import clear_memory, current_memory, memory_measure
 
@@ -136,7 +142,7 @@ def benchmark(size, provider):
         requires_grad=False,
     ).float()
 
-    with torch.autocast("cuda", dtype=PRECISION):
+    with torch.autocast(device.split(":")[0] if isinstance(device, str) else device.type, dtype=PRECISION):
         fn = fwd if INFERENCE else backward
         if provider == "Default":
             ms = speed(
@@ -224,7 +230,7 @@ for size in SEQ_LEN:
         requires_grad=False,
     ).float()
 
-    with torch.autocast("cuda", dtype=PRECISION):
+    with torch.autocast(device.split(":")[0] if isinstance(device, str) else device.type, dtype=PRECISION):
         memory_default = memory_measure(
             lambda: fwd(
                 model,

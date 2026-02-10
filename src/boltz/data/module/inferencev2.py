@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import pytorch_lightning as pl
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -314,7 +313,7 @@ class PredictionDataset(torch.utils.data.Dataset):
         return len(self.manifest.records)
 
 
-class Boltz2InferenceDataModule(pl.LightningDataModule):
+class Boltz2InferenceDataModule:
     """DataModule for Boltz2 inference."""
 
     def __init__(
@@ -354,7 +353,6 @@ class Boltz2InferenceDataModule(pl.LightningDataModule):
             The method to override.
 
         """
-        super().__init__()
         self.num_workers = num_workers
         self.manifest = manifest
         self.target_dir = target_dir
@@ -395,39 +393,40 @@ class Boltz2InferenceDataModule(pl.LightningDataModule):
             collate_fn=collate,
         )
 
-    def transfer_batch_to_device(
-        self,
-        batch: dict,
-        device: torch.device,
-        dataloader_idx: int,  # noqa: ARG002
-    ) -> dict:
-        """Transfer a batch to the given device.
 
-        Parameters
-        ----------
-        batch : Dict
-            The batch to transfer.
-        device : torch.device
-            The device to transfer to.
-        dataloader_idx : int
-            The dataloader index.
 
-        Returns
-        -------
-        np.Any
-            The transferred batch.
+def transfer_batch_to_device(
+    batch: dict,
+    device: torch.device,
+    dataloader_idx: int = None,  # noqa: ARG001
+) -> dict:
+    """Transfer a batch to the given device.
 
-        """
-        for key in batch:
-            if key not in [
-                "all_coords",
-                "all_resolved_mask",
-                "crop_to_all_atom_map",
-                "chain_symmetries",
-                "amino_acids_symmetries",
-                "ligand_symmetries",
-                "record",
-                "affinity_mw",
-            ]:
-                batch[key] = batch[key].to(device)
-        return batch
+    Parameters
+    ----------
+    batch : Dict
+        The batch to transfer.
+    device : torch.device
+        The device to transfer to.
+    dataloader_idx : int, optional
+        The dataloader index (unused, kept for compatibility).
+
+    Returns
+    -------
+    dict
+        The transferred batch.
+
+    """
+    for key in batch:
+        if key not in [
+            "all_coords",
+            "all_resolved_mask",
+            "crop_to_all_atom_map",
+            "chain_symmetries",
+            "amino_acids_symmetries",
+            "ligand_symmetries",
+            "record",
+            "affinity_mw",
+        ]:
+            batch[key] = batch[key].to(device)
+    return batch

@@ -1,8 +1,9 @@
-import pytorch_lightning
+import random
+import unittest
+
+import numpy as np
 import torch
 import torch.nn as nn
-
-import unittest
 
 from boltz.model.layers.outer_product_mean import OuterProductMean
 
@@ -14,7 +15,9 @@ class OuterProductMeanTest(unittest.TestCase):
         self.c_out = 64
 
         torch.set_grad_enabled(False)
-        pytorch_lightning.seed_everything(1100)
+        random.seed(1100)
+        np.random.seed(1100)
+        torch.manual_seed(1100)
         self.layer = OuterProductMean(self.c_in, self.c_hidden, self.c_out)
 
         # Initialize layer

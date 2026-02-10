@@ -5,8 +5,6 @@ from typing import Literal
 
 import numpy as np
 import torch
-from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.callbacks import BasePredictionWriter
 from torch import Tensor
 
 from boltz.data.types import Coords, Interface, Record, Structure, StructureV2
@@ -14,7 +12,7 @@ from boltz.data.write.mmcif import to_mmcif
 from boltz.data.write.pdb import to_pdb
 
 
-class BoltzWriter(BasePredictionWriter):
+class BoltzWriter:
     """Custom writer for predictions."""
 
     def __init__(
@@ -33,7 +31,6 @@ class BoltzWriter(BasePredictionWriter):
             The directory to save the predictions.
 
         """
-        super().__init__(write_interval="batch")
         if output_format not in ["pdb", "mmcif"]:
             msg = f"Invalid output format: {output_format}"
             raise ValueError(msg)
@@ -48,13 +45,8 @@ class BoltzWriter(BasePredictionWriter):
 
     def write_on_batch_end(
         self,
-        trainer: Trainer,  # noqa: ARG002
-        pl_module: LightningModule,  # noqa: ARG002
         prediction: dict[str, Tensor],
-        batch_indices: list[int],  # noqa: ARG002
         batch: dict[str, Tensor],
-        batch_idx: int,  # noqa: ARG002
-        dataloader_idx: int,  # noqa: ARG002
     ) -> None:
         """Write the predictions to disk."""
         if prediction["exception"]:
@@ -257,17 +249,13 @@ class BoltzWriter(BasePredictionWriter):
                 )
                 np.savez_compressed(path, s=s, z=z)
 
-    def on_predict_epoch_end(
-        self,
-        trainer: Trainer,  # noqa: ARG002
-        pl_module: LightningModule,  # noqa: ARG002
-    ) -> None:
+    def on_predict_epoch_end(self) -> None:
         """Print the number of failed examples."""
         # Print number of failed examples
         print(f"Number of failed examples: {self.failed}")  # noqa: T201
 
 
-class BoltzAffinityWriter(BasePredictionWriter):
+class BoltzAffinityWriter:
     """Custom writer for predictions."""
 
     def __init__(
@@ -283,7 +271,6 @@ class BoltzAffinityWriter(BasePredictionWriter):
             The directory to save the predictions.
 
         """
-        super().__init__(write_interval="batch")
         self.failed = 0
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
@@ -291,13 +278,8 @@ class BoltzAffinityWriter(BasePredictionWriter):
 
     def write_on_batch_end(
         self,
-        trainer: Trainer,  # noqa: ARG002
-        pl_module: LightningModule,  # noqa: ARG002
         prediction: dict[str, Tensor],
-        batch_indices: list[int],  # noqa: ARG002
         batch: dict[str, Tensor],
-        batch_idx: int,  # noqa: ARG002
-        dataloader_idx: int,  # noqa: ARG002
     ) -> None:
         """Write the predictions to disk."""
         if prediction["exception"]:
@@ -333,11 +315,7 @@ class BoltzAffinityWriter(BasePredictionWriter):
         with path.open("w") as f:
             f.write(json.dumps(affinity_summary, indent=4))
 
-    def on_predict_epoch_end(
-        self,
-        trainer: Trainer,  # noqa: ARG002
-        pl_module: LightningModule,  # noqa: ARG002
-    ) -> None:
+    def on_predict_epoch_end(self) -> None:
         """Print the number of failed examples."""
         # Print number of failed examples
         print(f"Number of failed examples: {self.failed}")  # noqa: T201

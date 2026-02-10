@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 import torch
 import torch._dynamo
-from pytorch_lightning import LightningModule
 from torch import Tensor, nn
 from torchmetrics import MeanMetric
 
@@ -33,11 +32,11 @@ from boltz.model.modules.trunk import (
     MSAModule,
     PairformerModule,
 )
-from boltz.model.modules.utils import ExponentialMovingAverage
+from boltz.model.modules.utils import empty_device_cache, ExponentialMovingAverage
 from boltz.model.optim.scheduler import AlphaFoldLRScheduler
 
 
-class Boltz1(LightningModule):
+class Boltz1(nn.Module):
     """Boltz1 model."""
 
     def __init__(  # noqa: PLR0915, C901, PLR0912
@@ -79,8 +78,11 @@ class Boltz1(LightningModule):
         use_kernels: bool = False,
     ) -> None:
         super().__init__()
+        # Store hyperparameters for checkpoint compatibility
+        self.hparams = {k: v for k, v in locals().items() if k != 'self' and k != '__class__'}
 
-        self.save_hyperparameters()
+        # Metrics storage for logging
+        self._metrics = {}
 
         self.lddt = nn.ModuleDict()
         self.disto_lddt = nn.ModuleDict()
@@ -260,6 +262,50 @@ class Boltz1(LightningModule):
             for name, param in self.named_parameters():
                 if name.split(".")[0] != "confidence_module":
                     param.requires_grad = False
+
+    @property
+    def device(self):
+        """Get the device of the model."""
+        return next(self.parameters()).device
+
+    def log(self, name, value, **kwargs):
+        """Accumulate a metric for later retrieval."""
+        if isinstance(value, torch.Tensor):
+            value = value.detach()
+        self._metrics[name] = value
+
+    def log_dict(self, metrics_dict, **kwargs):
+        """Accumulate multiple metrics."""
+        for name, value in metrics_dict.items():
+            self.log(name, value, **kwargs)
+
+    def get_metrics(self):
+        """Get and clear accumulated metrics."""
+        metrics = dict(self._metrics)
+        self._metrics.clear()
+        return metrics
+
+    @classmethod
+    def load_from_checkpoint(cls, checkpoint_path, map_location="cpu", strict=True, **kwargs):
+        """Load model from a Lightning or vanilla checkpoint."""
+        ckpt = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
+
+        # Lightning checkpoint format
+        if 'hyper_parameters' in ckpt:
+            hparams = ckpt['hyper_parameters']
+            hparams.update(kwargs)
+            model = cls(**hparams)
+            model.load_state_dict(ckpt['state_dict'], strict=strict)
+        # Vanilla checkpoint format
+        elif 'state_dict' in ckpt:
+            hparams = ckpt.get('hparams', {})
+            hparams.update(kwargs)
+            model = cls(**hparams)
+            model.load_state_dict(ckpt['state_dict'], strict=strict)
+        else:
+            raise ValueError(f"Unknown checkpoint format: {list(ckpt.keys())}")
+
+        return model
 
     def setup(self, stage: str) -> None:
         """Set the model for training, validation and inference."""
@@ -543,9 +589,6 @@ class Boltz1(LightningModule):
         self.log("train/grad_norm", self.gradient_norm(self), prog_bar=False)
         self.log("train/param_norm", self.parameter_norm(self), prog_bar=False)
 
-        lr = self.trainer.optimizers[0].param_groups[0]["lr"]
-        self.log("lr", lr, prog_bar=False)
-
         self.log(
             "train/grad_norm_msa_module",
             self.gradient_norm(self.msa_module),
@@ -630,7 +673,7 @@ class Boltz1(LightningModule):
         except RuntimeError as e:  # catch out of memory exceptions
             if "out of memory" in str(e):
                 print("| WARNING: ran out of memory, skipping batch")
-                torch.cuda.empty_cache()
+                empty_device_cache(self.device.type)
                 gc.collect()
                 return
             else:
@@ -684,7 +727,7 @@ class Boltz1(LightningModule):
         except RuntimeError as e:  # catch out of memory exceptions
             if "out of memory" in str(e):
                 print("| WARNING: ran out of memory, skipping batch")
-                torch.cuda.empty_cache()
+                empty_device_cache(self.device.type)
                 gc.collect()
                 return
             else:
@@ -1198,7 +1241,7 @@ class Boltz1(LightningModule):
         except RuntimeError as e:  # catch out of memory exceptions
             if "out of memory" in str(e):
                 print("| WARNING: ran out of memory, skipping batch")
-                torch.cuda.empty_cache()
+                empty_device_cache(self.device.type)
                 gc.collect()
                 return {"exception": True}
             else:

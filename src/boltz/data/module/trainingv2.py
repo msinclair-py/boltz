@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import pytorch_lightning as pl
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -464,7 +463,7 @@ class ValidationDataset(torch.utils.data.Dataset):
         return length
 
 
-class BoltzTrainingDataModule(pl.LightningDataModule):
+class BoltzTrainingDataModule:
     """DataModule for boltz."""
 
     def __init__(self, cfg: DataConfig) -> None:
@@ -476,7 +475,6 @@ class BoltzTrainingDataModule(pl.LightningDataModule):
             The data configuration.
 
         """
-        super().__init__()
         self.cfg = cfg
 
         assert self.cfg.val_batch_size == 1, "Validation only works with batch size=1."

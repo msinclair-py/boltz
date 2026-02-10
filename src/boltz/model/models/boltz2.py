@@ -4,7 +4,6 @@ from typing import Any, Optional
 import numpy as np
 import torch
 import torch._dynamo
-from pytorch_lightning import Callback, LightningModule
 from torch import Tensor, nn
 from torchmetrics import MeanMetric
 
@@ -33,11 +32,12 @@ from boltz.model.modules.trunkv2 import (
     TemplateModule,
     TemplateV2Module,
 )
+from boltz.model.modules.utils import empty_device_cache
 from boltz.model.optim.ema import EMA
 from boltz.model.optim.scheduler import AlphaFoldLRScheduler
 
 
-class Boltz2(LightningModule):
+class Boltz2(nn.Module):
     """Boltz2 model."""
 
     def __init__(
@@ -106,10 +106,20 @@ class Boltz2(LightningModule):
         use_kernels: bool = False,
     ) -> None:
         super().__init__()
-        self.save_hyperparameters(ignore=["validators"])
+        # Store hyperparameters for checkpoint compatibility
+        self.hparams = {k: v for k, v in locals().items() if k != 'self' and k != '__class__'}
+
+        # Metrics storage for logging
+        self._metrics = {}
+
+        # Global step counter (set externally by training loop)
+        self.global_step = 0
 
         # No random recycling
         self.no_random_recycling_training = no_random_recycling_training
+
+        # Store validate_structure explicitly (was previously handled by save_hyperparameters)
+        self.validate_structure = validate_structure
 
         if validate_structure:
             # Late init at setup time
@@ -357,6 +367,50 @@ class Boltz2(LightningModule):
                 ):
                     param.requires_grad = False
 
+    @property
+    def device(self):
+        """Get the device of the model."""
+        return next(self.parameters()).device
+
+    def log(self, name, value, **kwargs):
+        """Accumulate a metric for later retrieval."""
+        if isinstance(value, torch.Tensor):
+            value = value.detach()
+        self._metrics[name] = value
+
+    def log_dict(self, metrics_dict, **kwargs):
+        """Accumulate multiple metrics."""
+        for name, value in metrics_dict.items():
+            self.log(name, value, **kwargs)
+
+    def get_metrics(self):
+        """Get and clear accumulated metrics."""
+        metrics = dict(self._metrics)
+        self._metrics.clear()
+        return metrics
+
+    @classmethod
+    def load_from_checkpoint(cls, checkpoint_path, map_location="cpu", strict=True, **kwargs):
+        """Load model from a Lightning or vanilla checkpoint."""
+        ckpt = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
+
+        # Lightning checkpoint format
+        if 'hyper_parameters' in ckpt:
+            hparams = ckpt['hyper_parameters']
+            hparams.update(kwargs)
+            model = cls(**hparams)
+            model.load_state_dict(ckpt['state_dict'], strict=strict)
+        # Vanilla checkpoint format
+        elif 'state_dict' in ckpt:
+            hparams = ckpt.get('hparams', {})
+            hparams.update(kwargs)
+            model = cls(**hparams)
+            model.load_state_dict(ckpt['state_dict'], strict=strict)
+        else:
+            raise ValueError(f"Unknown checkpoint format: {list(ckpt.keys())}")
+
+        return model
+
     def setup(self, stage: str) -> None:
         """Set the model for training, validation and inference."""
         if stage == "predict" and not (
@@ -364,39 +418,6 @@ class Boltz2(LightningModule):
             and torch.cuda.get_device_properties(torch.device("cuda")).major >= 8.0  # noqa: PLR2004
         ):
             self.use_kernels = False
-
-        if (
-            stage != "predict"
-            and hasattr(self.trainer, "datamodule")
-            and self.trainer.datamodule
-            and self.validate_structure
-        ):
-            self.val_group_mapper.update(self.trainer.datamodule.val_group_mapper)
-
-            l1 = len(self.val_group_mapper)
-            l2 = self.num_val_datasets
-            msg = (
-                f"Number of validation datasets num_val_datasets={l2} "
-                f"does not match the number of val_group_mapper entries={l1}."
-            )
-            assert l1 == l2, msg
-
-            # Map an index to a validator, and double check val names
-            # match from datamodule
-            all_validator_names = []
-            for validator in self.validators:
-                for val_name in validator.val_names:
-                    msg = f"Validator {val_name} duplicated in validators."
-                    assert val_name not in all_validator_names, msg
-                    all_validator_names.append(val_name)
-                    for val_idx, val_group in self.val_group_mapper.items():
-                        if val_name == val_group["label"]:
-                            self.validator_mapper[val_idx] = validator
-
-            msg = "Mismatch between validator names and val_group_mapper values."
-            assert set(all_validator_names) == {
-                x["label"] for x in self.val_group_mapper.values()
-            }, msg
 
     def forward(
         self,
@@ -529,7 +550,7 @@ class Boltz2(LightningModule):
                     "token_trans_bias": token_trans_bias,
                 }
 
-                with torch.autocast("cuda", enabled=False):
+                with torch.autocast(s.device.type, enabled=False):
                     struct_out = self.structure_module.sample(
                         s_trunk=s.float(),
                         s_inputs=s_inputs.float(),
@@ -568,7 +589,7 @@ class Boltz2(LightningModule):
                 feats["coords"] = atom_coords  # (multiplicity, L, 3)
                 assert len(feats["coords"].shape) == 3
 
-                with torch.autocast("cuda", enabled=False):
+                with torch.autocast(s.device.type, enabled=False):
                     struct_out = self.structure_module(
                         s_trunk=s.float(),
                         s_inputs=s_inputs.float(),
@@ -625,7 +646,7 @@ class Boltz2(LightningModule):
             ]
             s_inputs = self.input_embedder(feats, affinity=True)
 
-            with torch.autocast("cuda", enabled=False):
+            with torch.autocast(s_inputs.device.type, enabled=False):
                 if self.affinity_ensemble:
                     dict_out_affinity1 = self.affinity_module1(
                         s_inputs=s_inputs.detach(),
@@ -932,9 +953,6 @@ class Boltz2(LightningModule):
         self.log("train/grad_norm", self.gradient_norm(self), prog_bar=False)
         self.log("train/param_norm", self.parameter_norm(self), prog_bar=False)
 
-        lr = self.trainer.optimizers[0].param_groups[0]["lr"]
-        self.log("lr", lr, prog_bar=False)
-
         self.log(
             "train/param_norm_msa_module",
             self.parameter_norm(self.msa_module),
@@ -984,18 +1002,14 @@ class Boltz2(LightningModule):
             if p.requires_grad and p.grad is not None
         ]
         if len(parameters) == 0:
-            return torch.tensor(
-                0.0, device="cuda" if torch.cuda.is_available() else "cpu"
-            )
+            return torch.tensor(0.0, device=self.device)
         norm = torch.stack(parameters).sum().sqrt()
         return norm
 
     def parameter_norm(self, module):
         parameters = [p.norm(p=2) ** 2 for p in module.parameters() if p.requires_grad]
         if len(parameters) == 0:
-            return torch.tensor(
-                0.0, device="cuda" if torch.cuda.is_available() else "cpu"
-            )
+            return torch.tensor(0.0, device=self.device)
         norm = torch.stack(parameters).sum().sqrt()
         return norm
 
@@ -1022,7 +1036,7 @@ class Boltz2(LightningModule):
                 if "out of memory" in str(e):
                     msg = f"| WARNING: ran out of memory, skipping batch, {idx_dataset}"
                     print(msg)
-                    torch.cuda.empty_cache()
+                    empty_device_cache(self.device.type)
                     gc.collect()
                     return
                 raise e
@@ -1042,7 +1056,7 @@ class Boltz2(LightningModule):
                 if "out of memory" in str(e):
                     msg = f"| WARNING: ran out of memory, skipping batch, {idx_dataset}"
                     print(msg)
-                    torch.cuda.empty_cache()
+                    empty_device_cache(self.device.type)
                     gc.collect()
                     return
                 raise e
@@ -1123,7 +1137,7 @@ class Boltz2(LightningModule):
         except RuntimeError as e:  # catch out of memory exceptions
             if "out of memory" in str(e):
                 print("| WARNING: ran out of memory, skipping batch")
-                torch.cuda.empty_cache()
+                empty_device_cache(self.device.type)
                 gc.collect()
                 return {"exception": True}
             else:
@@ -1243,12 +1257,12 @@ class Boltz2(LightningModule):
                 self.training_args.weight_decay
             )
 
-    def configure_callbacks(self) -> list[Callback]:
+    def configure_callbacks(self) -> list:
         """Configure model callbacks.
 
         Returns
         -------
-        List[Callback]
+        List
             List of callbacks to be used in the model.
 
         """

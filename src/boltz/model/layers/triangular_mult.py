@@ -10,6 +10,13 @@ except ImportError:
 from boltz.model.layers import initialize as init
 
 
+try:
+    from cuequivariance_torch.primitives.triangle import triangle_multiplicative_update
+    _HAS_CUEQUIVARIANCE = True
+except ImportError:
+    _HAS_CUEQUIVARIANCE = False
+
+
 @torch.compiler.disable
 def kernel_triangular_mult(
     x,
@@ -25,7 +32,11 @@ def kernel_triangular_mult(
     g_out_weight,
     eps,
 ):
-    from cuequivariance_torch.primitives.triangle import triangle_multiplicative_update
+    if not _HAS_CUEQUIVARIANCE:
+        raise RuntimeError(
+            "cuequivariance_torch is required for use_kernels=True but is not installed. "
+            "Pass --no_kernels or use_kernels=False to use the pure PyTorch fallback."
+        )
     return triangle_multiplicative_update(
         x,
         direction=direction,

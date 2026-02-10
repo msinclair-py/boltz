@@ -148,6 +148,12 @@ class Boltz1(nn.Module):
         self.predict_args = predict_args
         self.steering_args = steering_args
 
+        # Auto-disable if cuequivariance_torch is not available
+        if use_kernels:
+            try:
+                import cuequivariance_torch  # noqa: F401
+            except ImportError:
+                use_kernels = False
         self.use_kernels = use_kernels
 
         self.nucleotide_rmsd_weight = nucleotide_rmsd_weight

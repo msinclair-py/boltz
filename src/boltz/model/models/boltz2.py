@@ -175,7 +175,12 @@ class Boltz2(nn.Module):
         self.is_msa_compiled = False
         self.is_template_compiled = False
 
-        # Kernels
+        # Kernels — auto-disable if cuequivariance_torch is not available
+        if use_kernels:
+            try:
+                import cuequivariance_torch  # noqa: F401
+            except ImportError:
+                use_kernels = False
         self.use_kernels = use_kernels
 
         # Input embeddings

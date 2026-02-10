@@ -15,6 +15,26 @@ from torch.utils.checkpoint import checkpoint as torch_checkpoint
 LinearNoBias = partial(Linear, bias=False)
 
 
+class MeanMetric(Module):
+    """Running weighted mean metric, drop-in replacement for torchmetrics.MeanMetric."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.register_buffer("weighted_sum", torch.tensor(0.0))
+        self.register_buffer("total_weight", torch.tensor(0.0))
+
+    def update(self, value: torch.Tensor, weight: torch.Tensor = torch.tensor(1.0)) -> None:
+        self.weighted_sum += (value * weight).sum()
+        self.total_weight += weight.sum() if weight.dim() > 0 else weight * value.numel()
+
+    def compute(self) -> torch.Tensor:
+        return self.weighted_sum / self.total_weight
+
+    def reset(self) -> None:
+        self.weighted_sum.zero_()
+        self.total_weight.zero_()
+
+
 def empty_device_cache(device_type: str) -> None:
     """Clear device memory cache for the given device type.
 

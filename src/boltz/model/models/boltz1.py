@@ -5,7 +5,7 @@ from typing import Any, Optional
 import torch
 import torch._dynamo
 from torch import Tensor, nn
-from torchmetrics import MeanMetric
+from boltz.model.modules.utils import MeanMetric
 
 import boltz.model.layers.initialize as init
 from boltz.data import const

@@ -6,6 +6,12 @@ from math import sqrt
 
 import torch
 import torch.nn.functional as F
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from einops import rearrange
 from torch import nn
 from torch.nn import Module

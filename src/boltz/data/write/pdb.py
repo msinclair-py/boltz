@@ -4,6 +4,12 @@ from typing import Optional
 from rdkit import Chem
 from torch import Tensor
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 from boltz.data.types import Structure
 

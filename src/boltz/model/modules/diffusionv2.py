@@ -7,6 +7,12 @@ from math import sqrt
 import numpy as np
 import torch
 import torch.nn.functional as F  # noqa: N812
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from einops import rearrange
 from torch import nn
 from torch.nn import Module

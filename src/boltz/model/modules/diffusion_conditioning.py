@@ -4,6 +4,12 @@ import torch
 from torch import nn
 from torch.nn import Module
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.model.modules.encodersv2 import (
     AtomEncoder,
     PairwiseConditioning,

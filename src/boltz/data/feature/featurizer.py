@@ -6,6 +6,12 @@ import numba
 import numpy as np
 import numpy.typing as npt
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from numba import types
 from torch import Tensor, from_numpy
 from torch.nn.functional import one_hot

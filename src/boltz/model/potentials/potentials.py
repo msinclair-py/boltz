@@ -2,6 +2,12 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, Set, List, Union
 
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 import numpy as np
 from boltz.data import const
 from boltz.model.potentials.schedules import (

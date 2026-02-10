@@ -1,5 +1,11 @@
 import torch
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 def compute_relative_distribution_perfect_correlation(
     binned_distribution_1, binned_distribution_2

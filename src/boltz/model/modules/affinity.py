@@ -1,6 +1,12 @@
 import torch
 from torch import nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 import boltz.model.layers.initialize as init
 from boltz.model.layers.pairformer import PairformerNoSeqModule
 from boltz.model.modules.encodersv2 import PairwiseConditioning

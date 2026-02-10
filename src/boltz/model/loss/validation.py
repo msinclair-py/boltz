@@ -1,5 +1,11 @@
 import torch
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 from boltz.model.loss.confidence import (
     compute_frame_pred,

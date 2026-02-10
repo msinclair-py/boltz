@@ -4,6 +4,12 @@ from einops import einsum
 import torch
 import torch.nn.functional as F
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 def weighted_rigid_align(
     true_coords,

@@ -1,6 +1,12 @@
 import torch
 from torch import Tensor, nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 import boltz.model.layers.initialize as init
 
 

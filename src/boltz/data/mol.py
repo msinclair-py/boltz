@@ -5,6 +5,12 @@ from pathlib import Path
 
 import numpy as np
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from rdkit.Chem import Mol
 from tqdm import tqdm
 

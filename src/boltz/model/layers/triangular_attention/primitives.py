@@ -17,6 +17,12 @@ import math
 from typing import Callable, List, Optional, Tuple
 
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from einops import rearrange
 from torch import nn
 

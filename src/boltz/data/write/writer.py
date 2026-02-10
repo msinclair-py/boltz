@@ -7,6 +7,12 @@ import numpy as np
 import torch
 from torch import Tensor
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data.types import Coords, Interface, Record, Structure, StructureV2
 from boltz.data.write.mmcif import to_mmcif
 from boltz.data.write.pdb import to_pdb

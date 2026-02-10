@@ -1,6 +1,12 @@
 import torch
 from torch import nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 
 

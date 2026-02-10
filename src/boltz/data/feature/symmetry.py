@@ -6,6 +6,12 @@ from pathlib import Path
 import numpy as np
 import torch
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 from boltz.data.pad import pad_dim
 from boltz.model.loss.confidence import lddt_dist

@@ -17,6 +17,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import torch
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 def add(m1, m2, inplace):
     # The first operation in a checkpoint can't be in-place, but it's

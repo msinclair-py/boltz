@@ -1,6 +1,12 @@
 from typing import Optional
 
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from einops.layers.torch import Rearrange
 from torch import Tensor, nn
 

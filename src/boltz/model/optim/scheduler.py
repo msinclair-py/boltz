@@ -1,5 +1,11 @@
 import torch
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 class AlphaFoldLRScheduler(torch.optim.lr_scheduler._LRScheduler):
     """Implements the learning rate schedule defined AF3.

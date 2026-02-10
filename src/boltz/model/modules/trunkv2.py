@@ -2,6 +2,12 @@ import torch
 from torch import Tensor, nn
 from torch.nn.functional import one_hot
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 from boltz.model.layers.outer_product_mean import OuterProductMean
 from boltz.model.layers.pair_averaging import PairWeightedAveraging

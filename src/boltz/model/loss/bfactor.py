@@ -1,6 +1,12 @@
 import torch
 from torch import Tensor
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 def bfactor_loss_fn(
     output: dict[str, Tensor],

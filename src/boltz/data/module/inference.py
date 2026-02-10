@@ -6,6 +6,12 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 from boltz.data.feature.featurizer import BoltzFeaturizer
 from boltz.data.pad import pad_to_max

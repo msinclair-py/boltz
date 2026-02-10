@@ -3,6 +3,12 @@ from functools import partial
 from math import pi
 
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from einops import rearrange
 from torch import nn
 from torch.nn import Module, ModuleList

@@ -3,6 +3,12 @@ from typing import Optional
 import torch
 from torch import Tensor, nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 from boltz.model.layers.attention import AttentionPairBias
 from boltz.model.layers.attentionv2 import AttentionPairBias as AttentionPairBiasV2

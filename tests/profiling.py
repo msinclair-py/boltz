@@ -1,4 +1,10 @@
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 import gc
 
 

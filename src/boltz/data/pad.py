@@ -2,6 +2,12 @@ import torch
 from torch import Tensor
 from torch.nn.functional import pad
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 def pad_dim(data: Tensor, dim: int, pad_len: float, value: float = 0) -> Tensor:
     """Pad a tensor along a given dimension.

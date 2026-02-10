@@ -7,6 +7,12 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data import const
 from boltz.data.crop.affinity import AffinityCropper
 from boltz.data.feature.featurizerv2 import Boltz2Featurizer

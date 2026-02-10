@@ -12,6 +12,12 @@ import omegaconf
 import torch
 import torch.distributed as dist
 import torch.multiprocessing
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from omegaconf import OmegaConf, listconfig
 from torch.nn.parallel import DistributedDataParallel as DDP
 

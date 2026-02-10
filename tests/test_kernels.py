@@ -5,6 +5,12 @@ import time
 import pandas as pd
 import torch
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 if not torch.cuda.is_available():
     print("CUDA not available, skipping kernel benchmarks.")
     sys.exit(0)

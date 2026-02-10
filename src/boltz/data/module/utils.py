@@ -2,6 +2,12 @@
 
 import torch
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 # Keys that should NOT be transferred to device (non-tensor or special fields)
 _SKIP_KEYS_V1 = frozenset([

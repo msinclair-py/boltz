@@ -6,6 +6,12 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch.nn import (
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
     Linear,
     Module,
 )

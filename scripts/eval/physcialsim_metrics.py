@@ -3,6 +3,12 @@ import pickle
 
 import numpy as np
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from pathlib import Path
 from tqdm import tqdm
 import pandas as pd

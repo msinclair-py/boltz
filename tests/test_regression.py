@@ -6,6 +6,12 @@ import pprint
 import torch
 import torch.nn as nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 import pytest
 import unittest
 

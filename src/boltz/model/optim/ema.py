@@ -8,6 +8,12 @@ from typing import Any, Optional
 import torch
 from torch import nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 
 class EMA:
     """Implements Exponential Moving Averaging (EMA).

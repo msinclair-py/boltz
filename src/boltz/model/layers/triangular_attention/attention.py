@@ -19,6 +19,12 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.model.layers.triangular_attention.primitives import (
     Attention,
     LayerNorm,

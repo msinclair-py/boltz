@@ -16,6 +16,12 @@ import click
 import numpy as np
 import torch
 import torch.distributed as dist
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from rdkit import Chem
 from tqdm import tqdm
 

@@ -5,6 +5,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.model.layers.outer_product_mean import OuterProductMean
 
 

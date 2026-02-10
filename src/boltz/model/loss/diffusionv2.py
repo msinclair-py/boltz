@@ -3,6 +3,12 @@
 import einx
 import torch
 import torch.nn.functional as F
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from einops import einsum, rearrange
 
 

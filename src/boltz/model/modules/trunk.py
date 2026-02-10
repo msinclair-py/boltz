@@ -1,6 +1,12 @@
 from typing import Optional
 
 import torch
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from boltz.model.modules.utils import checkpoint_wrapper
 from torch import Tensor, nn
 

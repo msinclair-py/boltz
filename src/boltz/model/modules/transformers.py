@@ -3,6 +3,12 @@
 from boltz.model.modules.utils import checkpoint_wrapper
 from torch import nn, sigmoid
 from torch.nn import (
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
     LayerNorm,
     Linear,
     Module,

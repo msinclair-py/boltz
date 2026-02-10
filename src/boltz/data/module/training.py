@@ -7,6 +7,12 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 from boltz.data.crop.cropper import Cropper
 from boltz.data.feature.featurizer import BoltzFeaturizer
 from boltz.data.feature.symmetry import get_symmetries

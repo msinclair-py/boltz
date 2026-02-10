@@ -2,6 +2,12 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
+
 import boltz.model.layers.initialize as init
 from boltz.data import const
 from boltz.model.modules.confidence_utils import (

@@ -5,6 +5,12 @@ import numpy as np
 import torch
 import torch._dynamo
 from torch import Tensor, nn
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
+
 from boltz.model.modules.utils import MeanMetric
 
 import boltz.model.layers.initialize as init
@@ -392,18 +398,25 @@ class Boltz2(nn.Module):
     @classmethod
     def load_from_checkpoint(cls, checkpoint_path, map_location="cpu", strict=True, **kwargs):
         """Load model from a Lightning or vanilla checkpoint."""
+        import inspect
+
         ckpt = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
+
+        # Get valid __init__ parameter names
+        valid_params = set(inspect.signature(cls.__init__).parameters.keys()) - {'self'}
 
         # Lightning checkpoint format
         if 'hyper_parameters' in ckpt:
             hparams = ckpt['hyper_parameters']
             hparams.update(kwargs)
+            hparams = {k: v for k, v in hparams.items() if k in valid_params}
             model = cls(**hparams)
             model.load_state_dict(ckpt['state_dict'], strict=strict)
         # Vanilla checkpoint format
         elif 'state_dict' in ckpt:
             hparams = ckpt.get('hparams', {})
             hparams.update(kwargs)
+            hparams = {k: v for k, v in hparams.items() if k in valid_params}
             model = cls(**hparams)
             model.load_state_dict(ckpt['state_dict'], strict=strict)
         else:

@@ -6,15 +6,14 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch.nn import (
+    Linear,
+    Module,
+)
 
 try:
     import intel_extension_for_pytorch
 except ImportError:
     pass
-
-    Linear,
-    Module,
-)
 from torch.types import Device
 from torch.utils.checkpoint import checkpoint as torch_checkpoint
 

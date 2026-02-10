@@ -3,18 +3,17 @@
 import torch
 from torch import nn, sigmoid
 from torch.nn import (
-
-try:
-    import intel_extension_for_pytorch
-except ImportError:
-    pass
-
     LayerNorm,
     Linear,
     Module,
     ModuleList,
     Sequential,
 )
+
+try:
+    import intel_extension_for_pytorch
+except ImportError:
+    pass
 
 from boltz.model.layers.attentionv2 import AttentionPairBias
 from boltz.model.modules.utils import LinearNoBias, SwiGLU, default

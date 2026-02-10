@@ -399,24 +399,37 @@ class Boltz2(nn.Module):
     def load_from_checkpoint(cls, checkpoint_path, map_location="cpu", strict=True, **kwargs):
         """Load model from a Lightning or vanilla checkpoint."""
         import inspect
+        import warnings
 
         ckpt = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
 
         # Get valid __init__ parameter names
         valid_params = set(inspect.signature(cls.__init__).parameters.keys()) - {'self'}
 
+        def _filter_hparams(hparams):
+            dropped = {k: v for k, v in hparams.items() if k not in valid_params}
+            if dropped:
+                warnings.warn(
+                    f"Checkpoint contains hyper_parameters not in "
+                    f"{cls.__name__}.__init__, dropping: {list(dropped.keys())}. "
+                    f"If state_dict loading succeeds, these were non-architectural "
+                    f"params and this is safe to ignore.",
+                    stacklevel=3,
+                )
+            return {k: v for k, v in hparams.items() if k in valid_params}
+
         # Lightning checkpoint format
         if 'hyper_parameters' in ckpt:
             hparams = ckpt['hyper_parameters']
             hparams.update(kwargs)
-            hparams = {k: v for k, v in hparams.items() if k in valid_params}
+            hparams = _filter_hparams(hparams)
             model = cls(**hparams)
             model.load_state_dict(ckpt['state_dict'], strict=strict)
         # Vanilla checkpoint format
         elif 'state_dict' in ckpt:
             hparams = ckpt.get('hparams', {})
             hparams.update(kwargs)
-            hparams = {k: v for k, v in hparams.items() if k in valid_params}
+            hparams = _filter_hparams(hparams)
             model = cls(**hparams)
             model.load_state_dict(ckpt['state_dict'], strict=strict)
         else:
